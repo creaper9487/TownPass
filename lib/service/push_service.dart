@@ -231,7 +231,7 @@ class PushService extends GetxService {
   /// 到貨通知在通知列上的識別；登記取消或已經預約到這個品項時，用它把通知收掉。
   static String arrivalTag(String variantId) => 'assistive.arrival.$variantId';
 
-  /// 依通知帶的資料開啟輔具預約：有預約編號就開那一筆，到貨通知開預約查詢，其餘開首頁。
+  /// 依通知帶的資料開啟輔具預約：有預約編號就開那一筆，到貨通知直接開這件輔具的預約（選中心），其餘開首頁。
   static Future<bool> open(Map<String, dynamic> data) async {
     final base = MyServiceItemId.assistiveBooking.item.destinationUrl;
     // App 還沒畫出第一個畫面（冷啟動）時 GetX 沒有導覽器可用；那種情況由 openInitialMessage 負責。
@@ -239,10 +239,14 @@ class PushService extends GetxService {
       return false;
     }
     final reservationId = data['reservation_id'];
+    final variantId = data['variant_id'];
+    // 到貨通知：直接帶著這件輔具到「選中心」，選完就是確認資料，不用先到預約查詢再按一次預約。
     final path = reservationId is String && reservationId.isNotEmpty
         ? '/reservations/${Uri.encodeComponent(reservationId)}'
         : data['type'] == 'stock.arrived'
-            ? '/reservations'
+            ? (variantId is String && variantId.isNotEmpty
+                ? '/borrow/quick/${Uri.encodeComponent(variantId)}'
+                : '/reservations')
             : '';
     // GetX 預設不會重複開同一個路由；使用者正好在輔具預約裡時，仍要疊開通知指向的那一頁。
     // toNamed 要等頁面關掉才會結束，這裡不等，才能立刻回報「已經開了」。

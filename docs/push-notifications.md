@@ -68,4 +68,4 @@ Android 要在 `AndroidManifest.xml` 打開 `firebase_messaging_installation_id_
 - 後端送 FCM v1 的 `notification` 訊息，`android.notification.channel_id = "assistive"`。App 啟動時建立同名頻道（`NotificationService`）。
 - `data`：`{type, event_id, reservation_id?, variant_id?}`。
 - App 在前景時，系統不會顯示 FCM 通知，所以 `PushService` 用本機通知顯示。
-- 點通知會開輔具預約：有 `reservation_id` 開那一筆預約，`type = stock.arrived` 開預約查詢，其餘開首頁。App 被關掉時從通知開啟也一樣（`getInitialMessage`）。
+- 點通知會開輔具預約：有 `reservation_id` 開那一筆預約，`type = stock.arrived` 直接開這件輔具的借用（`/borrow/quick/<variant_id>`，已放進本次預約項目、從選中心開始；沒有 `variant_id` 時開預約查詢），其餘開首頁。App 被關掉時從通知開啟也一樣（`getInitialMessage`）。
