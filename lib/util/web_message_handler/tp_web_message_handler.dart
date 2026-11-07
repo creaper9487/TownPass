@@ -106,8 +106,9 @@ class Agree1999MessageHandler extends TPWebMessageHandler {
       onReply?.call(
         replyWebMessage(data: false),
       );
+      return;
     }
-    final Uri uri = Uri.parse('tel://1999');
+    final Uri uri = Uri(scheme: 'tel', path: '1999');
 
     final bool canLaunch = await canLaunchUrl(uri);
     if (!canLaunch) {
@@ -163,8 +164,10 @@ class PhoneCallMessageHandler extends TPWebMessageHandler {
       onReply?.call(
         replyWebMessage(data: false),
       );
+      return;
     }
-    final Uri uri = Uri.parse('tel://${message!}');
+    final String phone = message.toString().replaceFirst(RegExp(r'^tel:/*'), '');
+    final Uri uri = Uri(scheme: 'tel', path: phone);
     final bool canLaunch = await canLaunchUrl(uri);
 
     onReply?.call(
