@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:town_pass/page/city_service/model/my_service_model.dart';
 import 'package:town_pass/service/notification_service.dart';
 import 'package:town_pass/util/tp_route.dart';
+import 'package:town_pass/util/tp_web_view.dart';
 
 /// 推播（Firebase Cloud Messaging）。
 ///
@@ -136,7 +137,12 @@ class PushService extends GetxService {
         : data['type'] == 'stock.arrived'
             ? '/reservations'
             : '';
-    await TPRoute.openUri(uri: '$base$path');
+    // GetX 預設不會重複開同一個路由；使用者正好在輔具預約裡時，仍要疊開通知指向的那一頁。
+    await Get.toNamed(
+      TPRoute.webView,
+      arguments: WebViewArgument(url: '$base$path'),
+      preventDuplicates: false,
+    );
   }
 
   static Map<String, dynamic>? _decode(String? payload) {
