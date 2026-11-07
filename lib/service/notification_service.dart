@@ -5,6 +5,13 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 
 class NotificationService extends GetxService {
+  /// 輔具預約的通知頻道；後端推播指定的 channel_id 要和這裡一致。
+  static const String assistiveChannelId = 'assistive';
+  static const String _defaultChannelId = 'TownPass android notification id';
+
+  /// 使用者點了通知時呼叫，參數是顯示通知時帶的 payload。
+  static void Function(String? payload)? onTap;
+
   static int _id = 0;
   static final FlutterLocalNotificationsPlugin _notificationInstance = FlutterLocalNotificationsPlugin();
 
@@ -20,7 +27,21 @@ class NotificationService extends GetxService {
       ),
     );
 
-    await _notificationInstance.initialize(settings: initializationSettings);
+    await _notificationInstance.initialize(
+      settings: initializationSettings,
+      onDidReceiveNotificationResponse: (response) => onTap?.call(response.payload),
+    );
+
+    await _notificationInstance
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            assistiveChannelId,
+            '輔具預約通知',
+            description: '預約進度、取貨提醒與到貨消息',
+            importance: Importance.max,
+          ),
+        );
 
     return this;
   }
@@ -37,15 +58,22 @@ class NotificationService extends GetxService {
     }
   }
 
-  static Future<void> showNotification({String? title, String? content}) async {
+  static Future<void> showNotification({
+    String? title,
+    String? content,
+    String? channelId,
+    String? payload,
+  }) async {
+    final bool isAssistive = channelId == assistiveChannelId;
     await _notificationInstance.show(
       id: _id++,
       title: title,
       body: content,
-      notificationDetails: const NotificationDetails(
+      payload: payload,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          'TownPass android notification id',
-          'TownPass android notification channel name',
+          isAssistive ? assistiveChannelId : _defaultChannelId,
+          isAssistive ? '輔具預約通知' : 'TownPass android notification channel name',
           importance: Importance.max,
           priority: Priority.max,
         ),

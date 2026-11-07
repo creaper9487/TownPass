@@ -8,6 +8,7 @@ import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
 import 'package:town_pass/service/notification_service.dart';
 import 'package:town_pass/service/package_service.dart';
+import 'package:town_pass/service/push_service.dart';
 import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/service/subscription_service.dart';
 import 'package:town_pass/util/tp_colors.dart';
@@ -38,6 +39,7 @@ Future<void> initServices() async {
   Get.put<DataAuthorizationService>(DataAuthorizationService().init());
   await Get.putAsync<GeoLocatorService>(() async => await GeoLocatorService().init());
   await Get.putAsync<NotificationService>(() async => await NotificationService().init());
+  await Get.putAsync<PushService>(() async => await PushService().init());
 
   Get.put<SubscriptionService>(SubscriptionService());
 }
@@ -73,6 +75,10 @@ class MyApp extends StatelessWidget {
       initialRoute: TPRoute.main,
       onInit: () {
         NotificationService.requestPermission();
+        // 從通知點開 App 時，等首頁畫出來再開對應的服務頁面。
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Get.find<PushService>().openInitialMessage();
+        });
       },
       getPages: TPRoute.page,
     );

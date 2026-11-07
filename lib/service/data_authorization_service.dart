@@ -13,6 +13,7 @@ import 'package:town_pass/util/tp_colors.dart';
 enum DataScope {
   userinfo('台北通帳號資料'),
   location('目前位置'),
+  push('推播通知'),
   ;
 
   const DataScope(this.label);
@@ -98,6 +99,12 @@ class DataAuthorizationService extends GetxService {
     });
   }
 
+  /// 已經同意才回傳 true；不會跳出詢問視窗（用在不能打擾使用者的背景更新）。
+  bool isGranted({required WebUri? origin, required DataScope scope}) {
+    final o = origin?.origin ?? '';
+    return records.any((r) => r.origin == o && r.scope == scope && r.decision == AuthDecision.granted);
+  }
+
   /// 撤回（或重設）授權；下次該服務要資料時會再詢問。
   Future<void> reset(DataAuthorization record) async {
     records.removeWhere((r) => r.origin == record.origin && r.scope == record.scope);
@@ -131,6 +138,7 @@ class DataAuthorizationService extends GetxService {
       title: switch (scope) {
         DataScope.userinfo => '「$name」想使用你的台北通資料',
         DataScope.location => '「$name」想使用你目前的位置',
+        DataScope.push => '「$name」想傳送通知給你',
       },
       content: _content(scope),
     );
@@ -160,6 +168,11 @@ class DataAuthorizationService extends GetxService {
       DataScope.location => const [
           '用來推薦離你最近的服務據點。',
           '• 同意後，手機系統還會再詢問一次定位權限。',
+        ],
+      DataScope.push => const [
+          '會用來通知預約進度、取貨提醒與到貨消息。',
+          '• 通知內容不會出現姓名、電話或身分證字號。',
+          '• 不同意的話，仍可在「預約查詢」自行查看最新狀態。',
         ],
     };
     return Column(

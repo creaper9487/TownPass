@@ -10,6 +10,7 @@ import 'package:town_pass/service/data_authorization_service.dart';
 import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
 import 'package:town_pass/service/notification_service.dart';
+import 'package:town_pass/service/push_service.dart';
 import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/service/subscription_service.dart';
 import 'package:town_pass/util/tp_button.dart';
@@ -281,6 +282,49 @@ class NotifyMessageHandler extends TPWebMessageHandler {
         onReply?.call(replyWebMessage(data: false));
         return;
     }
+  }
+}
+
+/// 網頁要這支手機的推播 token，後端才能把預約進度推播過來。
+///
+/// 訊息可帶 `{silent: true}`（只在已經同意時回傳，不跳視窗，用於背景更新）與
+/// `{topics: ['assistive-notice']}`（同意後順便訂閱的主題）。
+/// 回傳 `{token, platform}`；沒有同意、系統拒絕通知或沒有設定 Firebase 時回傳空陣列。
+class PushTokenMessageHandler extends TPWebMessageHandler {
+  @override
+  String get name => 'push_token';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    final Map options = message is Map ? message : const {};
+    final bool silent = options['silent'] == true;
+    final authorization = Get.find<DataAuthorizationService>();
+
+    final bool allowed = silent
+        ? authorization.isGranted(origin: sourceOrigin, scope: DataScope.push)
+        : await authorization.ensure(origin: sourceOrigin, scope: DataScope.push);
+    if (!allowed) {
+      onReply?.call(replyWebMessage(data: []));
+      return;
+    }
+
+    final push = Get.find<PushService>();
+    final String? token = await push.token(askPermission: !silent);
+    if (token == null) {
+      onReply?.call(replyWebMessage(data: []));
+      return;
+    }
+
+    final topics = options['topics'];
+    if (topics is List) {
+      await push.subscribeTopics(topics.whereType<String>());
+    }
+    onReply?.call(replyWebMessage(data: {'token': token, 'platform': 'fcm'}));
   }
 }
 

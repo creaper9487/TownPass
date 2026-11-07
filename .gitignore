@@ -89,3 +89,5 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+# 本機 Firebase 設定（--dart-define-from-file）
+firebase.local.json
