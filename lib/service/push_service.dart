@@ -6,8 +6,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:town_pass/page/city_service/model/my_service_model.dart';
+import 'package:town_pass/service/assistive_backend_service.dart';
+import 'package:town_pass/service/data_authorization_service.dart';
 import 'package:town_pass/service/notification_service.dart';
+import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/util/tp_route.dart';
 import 'package:town_pass/util/tp_web_view.dart';
 
@@ -25,8 +29,11 @@ class PushService extends GetxService {
   /// 開發用：沒有 Firebase 專案時，用這個假 token 走完「網頁 → App → 後端登記裝置」的流程。只在 debug 版有效。
   static const String _devToken = String.fromEnvironment('PUSH_DEV_TOKEN');
 
-  /// 網頁只能訂閱 assistive- 開頭的主題，避免任意網頁替使用者訂閱不相干的主題。
-  static final RegExp _allowedTopic = RegExp(r'^assistive-[a-z0-9-]{1,40}$');
+  /// 服務公告用 topic：登記推播裝置時一起訂閱。
+  static const String noticeTopic = 'assistive-notice';
+
+  /// 向後端登記過的 token（換 token 時要先移除舊的，撤回授權時要移除）。
+  static const String _registeredKey = 'assistive_push_registered_token';
 
   bool _ready = false;
   bool get isReady => _ready;
@@ -36,6 +43,7 @@ class PushService extends GetxService {
   final StreamController<String> _registrations = StreamController<String>.broadcast();
 
   Future<PushService> init() async {
+    _watchAuthorization();
     NotificationService.onTap = (payload) {
       final data = _decode(payload);
       if (data != null) {
@@ -60,6 +68,11 @@ class PushService extends GetxService {
       FirebaseMessaging.instance.onRegistered.listen((id) {
         _installationId = id;
         _registrations.add(id);
+        // 這支手機的 FID 換了：已經登記過的話，悄悄用新的重新登記。
+        final String? registered = _prefs.getString(_registeredKey);
+        if (registered != null && registered != id) {
+          registerDevice(askPermission: false);
+        }
       });
       FirebaseMessaging.onMessage.listen(_showInForeground);
       FirebaseMessaging.onMessageOpenedApp.listen(_openMessage);
@@ -68,6 +81,23 @@ class PushService extends GetxService {
       debugPrint('Push disabled: $error');
     }
     return this;
+  }
+
+  SharedPreferences get _prefs => Get.find<SharedPreferencesService>().instance;
+
+  void _watchAuthorization() {
+    // 使用者在「歷程與授權管理」撤回推播授權：請後端不要再推播到這支手機。
+    ever(Get.find<DataAuthorizationService>().records, (_) {
+      final String origin = DataAuthorizationService.originOf(
+        MyServiceItemId.assistiveBooking.item.destinationUrl,
+      );
+      final bool granted = Get.find<DataAuthorizationService>().records.any(
+            (r) => r.origin == origin && r.scope == DataScope.push && r.decision == AuthDecision.granted,
+          );
+      if (!granted) {
+        unregisterDevice();
+      }
+    });
   }
 
   /// 取得這支手機的 FCM token；使用者在系統層級拒絕通知、或沒有設定 Firebase 時回傳 null。
@@ -108,15 +138,53 @@ class PushService extends GetxService {
     }
   }
 
-  Future<void> subscribeTopics(Iterable<String> topics) async {
-    if (!_ready) {
+  /// 向後端登記這支手機，並訂閱服務公告。成功回傳 true；拿不到 token（系統拒絕通知、沒有 Firebase）或後端連不上回傳 false。
+  /// [askPermission] 為 false 時不會跳出系統的通知權限視窗。
+  Future<bool> registerDevice({required bool askPermission}) async {
+    final String? token = await this.token(askPermission: askPermission);
+    if (token == null) {
+      return false;
+    }
+    final backend = Get.find<AssistiveBackendService>();
+    try {
+      final String? previous = _prefs.getString(_registeredKey);
+      if (previous != null && previous != token) {
+        await backend.unregisterDevice(previous).catchError((_) {});
+      }
+      await backend.registerDevice(token);
+      await _prefs.setString(_registeredKey, token);
+    } on AssistiveApiException catch (error) {
+      debugPrint('Push device registration failed: $error');
+      return false;
+    }
+    if (_ready) {
+      try {
+        await FirebaseMessaging.instance.subscribeToTopic(noticeTopic);
+      } catch (error) {
+        debugPrint('Subscribe $noticeTopic failed: $error');
+      }
+    }
+    return true;
+  }
+
+  /// 請後端移除這支手機（撤回授權或關閉通知時）。
+  Future<void> unregisterDevice() async {
+    final String? token = _prefs.getString(_registeredKey);
+    if (token == null) {
       return;
     }
-    for (final topic in topics.where(_allowedTopic.hasMatch)) {
+    await _prefs.remove(_registeredKey);
+    try {
+      await Get.find<AssistiveBackendService>().unregisterDevice(token);
+    } on AssistiveApiException catch (error) {
+      // 連不上：推播失敗時後端會自己移除失效的 token。
+      debugPrint('Push device removal failed: $error');
+    }
+    if (_ready) {
       try {
-        await FirebaseMessaging.instance.subscribeToTopic(topic);
+        await FirebaseMessaging.instance.unsubscribeFromTopic(noticeTopic);
       } catch (error) {
-        debugPrint('Subscribe $topic failed: $error');
+        debugPrint('Unsubscribe $noticeTopic failed: $error');
       }
     }
   }

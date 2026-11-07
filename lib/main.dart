@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
+import 'package:town_pass/service/assistive_backend_service.dart';
 import 'package:town_pass/service/data_authorization_service.dart';
 import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
@@ -39,6 +40,7 @@ Future<void> initServices() async {
   Get.put<DataAuthorizationService>(DataAuthorizationService().init());
   await Get.putAsync<GeoLocatorService>(() async => await GeoLocatorService().init());
   await Get.putAsync<NotificationService>(() async => await NotificationService().init());
+  await Get.putAsync<AssistiveBackendService>(() async => await AssistiveBackendService().init());
   await Get.putAsync<PushService>(() async => await PushService().init());
 
   Get.put<SubscriptionService>(SubscriptionService());

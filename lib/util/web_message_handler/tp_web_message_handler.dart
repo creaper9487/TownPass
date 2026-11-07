@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
+import 'package:town_pass/service/assistive_backend_service.dart';
 import 'package:town_pass/service/data_authorization_service.dart';
 import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
@@ -285,14 +286,17 @@ class NotifyMessageHandler extends TPWebMessageHandler {
   }
 }
 
-/// 網頁要這支手機的推播 token，後端才能把預約進度推播過來。
-///
-/// 訊息可帶 `{silent: true}`（只在已經同意時回傳，不跳視窗，用於背景更新）與
-/// `{topics: ['assistive-notice']}`（同意後順便訂閱的主題）。
-/// 回傳 `{token, platform}`；沒有同意、系統拒絕通知或沒有設定 Firebase 時回傳空陣列。
-class PushTokenMessageHandler extends TPWebMessageHandler {
+/// 輔具預約專用訊息：只有輔具預約自己的網頁（來源相符）可以使用，其他網頁一律拿不到信箱。
+mixin AssistiveOriginGuard {
+  bool allowed(WebUri? sourceOrigin) => AssistiveBackendService.isServiceOrigin(sourceOrigin);
+}
+
+/// 取得信箱 id。信箱金鑰只留在 App，不給網頁。
+/// 訊息可帶 `{renew: true}`：後端不認得目前的信箱時，網頁請 App 建立新的。
+/// 回傳 `{mailbox_id}`；失敗（後端連不上、來源不符）回傳空陣列。
+class AssistiveMailboxMessageHandler extends TPWebMessageHandler with AssistiveOriginGuard {
   @override
-  String get name => 'push_token';
+  String get name => 'assistive_mailbox';
 
   @override
   Future<void> handle({
@@ -301,30 +305,117 @@ class PushTokenMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required Function(WebMessage replyWebMessage)? onReply,
   }) async {
-    final Map options = message is Map ? message : const {};
-    final bool silent = options['silent'] == true;
-    final authorization = Get.find<DataAuthorizationService>();
+    if (!allowed(sourceOrigin)) {
+      onReply?.call(replyWebMessage(data: []));
+      return;
+    }
+    final backend = Get.find<AssistiveBackendService>();
+    final bool renew = message is Map && message['renew'] == true;
+    try {
+      final String id = renew ? await backend.renewMailbox() : await backend.mailboxId();
+      if (renew) {
+        // 新的信箱還沒有登記手機：已經同意推播的話，悄悄補登記。
+        unawaited(Get.find<PushService>().registerDevice(askPermission: false));
+      }
+      onReply?.call(replyWebMessage(data: {'mailbox_id': id}));
+    } on AssistiveApiException {
+      onReply?.call(replyWebMessage(data: []));
+    }
+  }
+}
 
-    final bool allowed = silent
+/// 新增或取消到貨通知：`{variant_id, on}`。成功回傳 `true`；失敗回傳 `{ok: false, code}`
+///（code 例如 DUPLICATE_WAITLIST：同一類已經有等待中的、INVALID_FIELD：品項不存在、NETWORK：連不上）。
+class AssistiveSubscribeMessageHandler extends TPWebMessageHandler with AssistiveOriginGuard {
+  @override
+  String get name => 'assistive_subscribe';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    final Object? variant = message is Map ? message['variant_id'] : null;
+    if (!allowed(sourceOrigin) || variant == null) {
+      onReply?.call(replyWebMessage(data: {'ok': false, 'code': 'INVALID_REQUEST'}));
+      return;
+    }
+    final backend = Get.find<AssistiveBackendService>();
+    final bool on = (message as Map)['on'] != false;
+    try {
+      if (on) {
+        await backend.subscribe('$variant');
+      } else {
+        await backend.unsubscribe('$variant');
+      }
+      onReply?.call(replyWebMessage(data: true));
+    } on AssistiveApiException catch (error) {
+      onReply?.call(replyWebMessage(data: {
+        'ok': false,
+        'code': error.status == 0 ? 'NETWORK' : (error.code ?? 'ERROR'),
+      }));
+    }
+  }
+}
+
+/// 這個信箱的到貨通知：`[{id, variant_id, category_id, status: waiting|arrived, created_at, arrived_at}]`。
+/// 連不上時回傳 null，網頁就沿用上次看到的。
+class AssistiveSubscriptionsMessageHandler extends TPWebMessageHandler with AssistiveOriginGuard {
+  @override
+  String get name => 'assistive_subscriptions';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!allowed(sourceOrigin)) {
+      onReply?.call(replyWebMessage(data: null));
+      return;
+    }
+    try {
+      final list = await Get.find<AssistiveBackendService>().subscriptions();
+      onReply?.call(replyWebMessage(data: list.map((s) => s.toJson()).toList()));
+    } on AssistiveApiException {
+      onReply?.call(replyWebMessage(data: null));
+    }
+  }
+}
+
+/// 讓這支手機接收輔具預約的推播：先詢問使用者（授權範圍 push，以網頁來源為單位，可在「歷程與授權管理」撤回），
+/// 同意後才向系統要通知權限、取得 token 並向後端登記。
+/// 訊息可帶 `{silent: true}`：只在已經同意時更新登記，不跳任何視窗。
+/// 回傳 `true`（已登記）或 `false`（沒同意、系統拒絕通知、沒有設定 Firebase、後端連不上）。
+class AssistivePushMessageHandler extends TPWebMessageHandler with AssistiveOriginGuard {
+  @override
+  String get name => 'assistive_push';
+
+  @override
+  Future<void> handle({
+    required Object? message,
+    required WebUri? sourceOrigin,
+    required bool isMainFrame,
+    required Function(WebMessage replyWebMessage)? onReply,
+  }) async {
+    if (!allowed(sourceOrigin)) {
+      onReply?.call(replyWebMessage(data: false));
+      return;
+    }
+    final bool silent = message is Map && message['silent'] == true;
+    final authorization = Get.find<DataAuthorizationService>();
+    final bool granted = silent
         ? authorization.isGranted(origin: sourceOrigin, scope: DataScope.push)
         : await authorization.ensure(origin: sourceOrigin, scope: DataScope.push);
-    if (!allowed) {
-      onReply?.call(replyWebMessage(data: []));
+    if (!granted) {
+      onReply?.call(replyWebMessage(data: false));
       return;
     }
-
-    final push = Get.find<PushService>();
-    final String? token = await push.token(askPermission: !silent);
-    if (token == null) {
-      onReply?.call(replyWebMessage(data: []));
-      return;
-    }
-
-    final topics = options['topics'];
-    if (topics is List) {
-      await push.subscribeTopics(topics.whereType<String>());
-    }
-    onReply?.call(replyWebMessage(data: {'token': token, 'platform': 'fcm'}));
+    final bool registered = await Get.find<PushService>().registerDevice(askPermission: !silent);
+    onReply?.call(replyWebMessage(data: registered));
   }
 }
 

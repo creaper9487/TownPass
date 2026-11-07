@@ -36,6 +36,8 @@ adb -s <裝置> install -r build/app/outputs/flutter-apk/app-debug.apk
 
 - **`firebase.local.json`**（推播用，不要 commit）：向專案管理者拿，格式見 [push-notifications.md](push-notifications.md)。
   沒有的話把 `--dart-define-from-file` 那行拿掉：App 照常運作，只是沒有推播。
+- **`ASSISTIVE_API_BASE`**：App 呼叫後端（信箱、推播裝置、到貨通知）的網址，預設 `http://10.0.2.2:8000/assistive/v1`（只適用 Android 模擬器）。
+  要和網頁 `.env.development` 的 `VITE_ASSISTIVE_API_BASE` 指向同一台後端，真機請改成後端電腦的區網 IP。
 - **`ASSISTIVE_URL`**：App 載入的網頁網址，預設 `http://10.0.2.2:5173/assistive`（只適用 Android 模擬器）。
   真機要加上 `--dart-define=ASSISTIVE_URL=http://<電腦的區網 IP>:5173/assistive`，手機與電腦要在同一個 Wi-Fi。
 

@@ -1,7 +1,7 @@
 # 推播通知（Firebase Cloud Messaging）
 
 輔具預約的後端（預約進度、取貨提醒、到貨、公告）用 FCM 推播到使用者的手機。
-App 端由 `PushService`（`lib/service/push_service.dart`）負責，網頁微服務透過 `push_token` 訊息取得 token。
+App 端由 `PushService`（`lib/service/push_service.dart`）負責，網頁微服務透過 `assistive_*` 訊息請 App 代為處理信箱、推播裝置與到貨通知。
 
 ## 設定
 
@@ -42,20 +42,26 @@ Android 要在 `AndroidManifest.xml` 打開 `firebase_messaging_installation_id_
 debug 版可以用 `--dart-define=PUSH_DEV_TOKEN=local-xxxx` 代替真的 token，走完「網頁 → App → 後端登記裝置」。
 後端把 `local-` 開頭的 token 當作本機假裝置，只記錄不送出。release 版不認這個參數。
 
-## 網頁微服務 ↔ App：`push_token`
+## 網頁微服務 ↔ App：`assistive_*` 訊息
 
-網頁送出 `{name: 'push_token', data: {silent?: boolean, topics?: string[]}}`，App 回覆 `{name: 'push_token', data}`：
+信箱金鑰與推播裝置都由 App 保管，網頁不碰金鑰（對應後端的 `docs/FRONTEND.md`）。這些訊息只有輔具預約自己的網頁（來源與服務網址相同）可以用，其他網頁一律拿不到信箱。
 
-- 成功：`data = {token, platform: 'fcm'}`。`token` 是 Firebase Installation ID（FID，`FirebaseMessaging.register()` + `onRegistered`），後端直接放進 FCM v1 的 `message.token` 送出（已用真實專案驗證）
-- 使用者不同意、系統拒絕通知、沒有設定 Firebase：`data = []`
+| 訊息 | 網頁送出 | App 回覆 |
+|---|---|---|
+| `assistive_mailbox` | 無，或 `{renew: true}` | `{mailbox_id}`；失敗是 `[]`。第一次會先 `POST /mailboxes`，金鑰存進系統安全儲存（Keystore／Keychain）。`renew` 是後端不認得目前的信箱時請 App 換新的，並補登記手機 |
+| `assistive_subscribe` | `{variant_id, on}` | `true`；失敗是 `{ok: false, code}`，code 例如 `DUPLICATE_WAITLIST`、`INVALID_FIELD`、`NETWORK` |
+| `assistive_subscriptions` | 無 | 到貨通知陣列 `[{id, variant_id, category_id, status: waiting｜arrived, created_at, arrived_at}]`；連不上是 `null` |
+| `assistive_push` | `{silent?}` | `true`（這支手機已向後端登記）或 `false` |
 
-行為：
+`assistive_push` 的行為：
 
-1. 以網頁來源（origin）為單位詢問使用者是否同意（`DataScope.push`），可在「歷程與授權管理」撤回。`silent: true` 時不跳任何視窗，沒同意就回空陣列。
-2. 同意後，App 才會向系統要通知權限、取得 token。
-3. `topics` 只接受 `assistive-` 開頭的名稱，同意後替使用者訂閱（後端公告用 `assistive-notice`）。
+1. 以網頁來源（origin）為單位詢問使用者是否同意（`DataScope.push`），可在「歷程與授權管理」撤回，撤回後 App 會請後端移除這支手機。`silent: true` 時不跳任何視窗，沒同意就回 `false`。
+2. 同意後，App 才會向系統要通知權限、取得 token（Firebase Installation ID，`FirebaseMessaging.register()` + `onRegistered`），然後 `POST /devices` 登記並訂閱 `assistive-notice`。後端直接把 FID 放進 FCM v1 的 `message.token`（已用真實專案驗證）。
+3. 同一支手機換了 token（重新安裝、FID 更新）會先移除舊的再登記新的，不會收到兩份推播。
 
-網頁拿到 token 後，用自己的信箱金鑰呼叫後端 `POST /devices` 登記；同一支手機換了 token，網頁會先請後端移除舊的再登記新的。
+Android 要在 `AndroidManifest.xml` 打開 `firebase_messaging_installation_id_enabled`（已設定），否則 FID API 會回報「API disabled」。
+
+後端網址用建置參數 `ASSISTIVE_API_BASE`（預設 `http://10.0.2.2:8000/assistive/v1`，只適用 Android 模擬器）；真機要換成電腦的區網 IP。
 
 ## 後端推播的格式（App 端的約定）
 

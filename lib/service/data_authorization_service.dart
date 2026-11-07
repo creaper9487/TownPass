@@ -124,6 +124,9 @@ class DataAuthorizationService extends GetxService {
     return Uri.tryParse(origin)?.host ?? origin;
   }
 
+  /// 網址的來源（scheme://host:port），和授權紀錄用的格式一樣。
+  static String originOf(String url) => _originOf(url);
+
   static String _originOf(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasAuthority) {
