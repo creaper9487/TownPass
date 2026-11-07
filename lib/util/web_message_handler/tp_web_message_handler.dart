@@ -260,19 +260,23 @@ class NotifyMessageHandler extends TPWebMessageHandler {
         WebMessage replyWebMessage,
       )? onReply}) async {
     switch (message) {
-      case Object json when json is Map<String, dynamic>:
-        NotificationService.showNotification(
-          title: json['title'],
-          content: json['content'],
+      case Map json:
+        final String? title = json['title']?.toString();
+        final String? content = json['content']?.toString();
+        await NotificationService.showNotification(
+          title: title,
+          content: content,
         );
-        final String content = json['content'];
-        if (RegExp(r'已訂閱(.+)').hasMatch(content)) {
-          final String target = RegExp(r'已訂閱(.+)').firstMatch(content)!.group(1)!;
-          Get.find<SubscriptionService>().addSubscription(title: target);
-        } else if (RegExp(r'已取消訂閱(.+)').hasMatch(content)) {
-          final String target = RegExp(r'已取消訂閱(.+)').firstMatch(content)!.group(1)!;
-          Get.find<SubscriptionService>().removeSubscription(title: target);
+        if (content != null) {
+          if (RegExp(r'已訂閱(.+)').hasMatch(content)) {
+            final String target = RegExp(r'已訂閱(.+)').firstMatch(content)!.group(1)!;
+            Get.find<SubscriptionService>().addSubscription(title: target);
+          } else if (RegExp(r'已取消訂閱(.+)').hasMatch(content)) {
+            final String target = RegExp(r'已取消訂閱(.+)').firstMatch(content)!.group(1)!;
+            Get.find<SubscriptionService>().removeSubscription(title: target);
+          }
         }
+        onReply?.call(replyWebMessage(data: true));
       default:
         onReply?.call(replyWebMessage(data: false));
         return;
