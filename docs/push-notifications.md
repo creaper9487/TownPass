@@ -1,6 +1,6 @@
 # 推播通知（Firebase Cloud Messaging）
 
-輔具預約的後端（預約進度、取貨提醒、到貨、公告）用 FCM 推播到使用者的手機。
+輔具預約的後端用 FCM 推播到使用者的手機。只推使用者不在 App 裡也需要知道的非同步消息：輔具到貨（`stock.arrived`）、取貨期限當天提醒（`reservation.pickup_reminder`）、中心確認申請（`reservation.confirmed`）。預約成功、取消這類使用者自己剛做完的事，由網頁用對話框回應，不推播。
 App 端由 `PushService`（`lib/service/push_service.dart`）負責，網頁微服務透過 `assistive_*` 訊息請 App 代為處理信箱、推播裝置與到貨通知。
 
 ## 設定

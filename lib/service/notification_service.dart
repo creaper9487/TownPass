@@ -38,7 +38,7 @@ class NotificationService extends GetxService {
           const AndroidNotificationChannel(
             assistiveChannelId,
             '輔具預約通知',
-            description: '預約進度、取貨提醒與到貨消息',
+            description: '輔具到貨、取貨期限提醒與中心確認申請',
             importance: Importance.max,
           ),
         );
