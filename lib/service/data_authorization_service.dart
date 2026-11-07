@@ -8,6 +8,7 @@ import 'package:town_pass/service/shared_preferences_service.dart';
 import 'package:town_pass/util/tp_dialog.dart';
 import 'package:town_pass/util/tp_text.dart';
 import 'package:town_pass/util/tp_colors.dart';
+import 'package:town_pass/util/tp_route.dart';
 
 /// 網頁微服務可以向 App 要求的個人資料種類。
 enum DataScope {
@@ -67,6 +68,9 @@ class DataAuthorizationService extends GetxService {
   /// 同一個來源同時送出多個要求時，共用同一次詢問。
   final Map<String, Future<bool>> _pending = {};
 
+  /// 這次開啟 App 期間已經按返回離開、沒有同意的來源：同一次使用中不再重複跳出聲明。
+  final Set<String> _leftWithoutAgreeing = {};
+
   DataAuthorizationService init() {
     final raw = Get.find<SharedPreferencesService>().instance.getString(_key);
     if (raw != null) {
@@ -91,6 +95,15 @@ class DataAuthorizationService extends GetxService {
     final existing = records.firstWhereOrNull((r) => r.origin == o && r.scope == scope);
     if (existing != null) {
       return existing.decision == AuthDecision.granted;
+    }
+    // 輔具預約：一份個資使用聲明涵蓋所有項目，第一次使用時出現一次，同意後不再逐項詢問。
+    if (o == _originOf(MyServiceItemId.assistiveBooking.item.destinationUrl)) {
+      if (_leftWithoutAgreeing.contains(o)) {
+        return false;
+      }
+      return _pending[o] ??= _askAgreement(o).whenComplete(() {
+        _pending.remove(o);
+      });
     }
     final key = '$o|${scope.name}';
     // 注意：whenComplete 的回呼不能回傳 Future（remove 會回傳它），否則會變成等自己，永遠不結束。
@@ -133,6 +146,29 @@ class DataAuthorizationService extends GetxService {
       return '';
     }
     return '${uri.scheme}://${uri.host}:${uri.port}';
+  }
+
+  /// 顯示輔具預約的個資使用聲明頁（和「1999電話」相同的版面）。同意就一次授權全部項目；
+  /// 按返回離開不記成拒絕，下次開啟 App 再問，但同一次使用中不會重複跳出。
+  Future<bool> _askAgreement(String origin) async {
+    final Object? agreed = await Get.toNamed(TPRoute.assistiveAgreement);
+    if (agreed != true) {
+      _leftWithoutAgreeing.add(origin);
+      return false;
+    }
+    final DateTime now = DateTime.now();
+    records.removeWhere((r) => r.origin == origin);
+    records.addAll([
+      for (final scope in DataScope.values)
+        DataAuthorization(
+          origin: origin,
+          scope: scope,
+          decision: AuthDecision.granted,
+          at: now,
+        ),
+    ]);
+    await _persist();
+    return true;
   }
 
   Future<bool> _ask(String origin, DataScope scope) async {

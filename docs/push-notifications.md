@@ -55,7 +55,7 @@ debug 版可以用 `--dart-define=PUSH_DEV_TOKEN=local-xxxx` 代替真的 token�
 
 `assistive_push` 的行為：
 
-1. 以網頁來源（origin）為單位詢問使用者是否同意（`DataScope.push`），可在「歷程與授權管理」撤回，撤回後 App 會請後端移除這支手機。`silent: true` 時不跳任何視窗，沒同意就回 `false`。
+1. 第一次使用輔具預約時，App 顯示一份「個資使用聲明」頁（版面和「1999電話」相同：卡片、勾選同意、同意鍵），涵蓋台北通資料、位置與推播通知，同意後一次授權，之後不再出現。按返回離開不算同意，也不記成拒絕，同一次使用中不會再跳出。授權可在「歷程與授權管理」撤回，撤回推播後 App 會請後端移除這支手機。`silent: true` 時不跳任何視窗，沒同意就回 `false`。
 2. 同意後，App 才會向系統要通知權限、取得 token（Firebase Installation ID，`FirebaseMessaging.register()` + `onRegistered`），然後 `POST /devices` 登記並訂閱 `assistive-notice`。後端直接把 FID 放進 FCM v1 的 `message.token`（已用真實專案驗證）。
 3. 同一支手機換了 token（重新安裝、FID 更新）會先移除舊的再登記新的，不會收到兩份推播。
 
