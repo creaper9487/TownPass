@@ -31,6 +31,10 @@ class PushService extends GetxService {
   bool _ready = false;
   bool get isReady => _ready;
 
+  /// Firebase Installation ID（FID）：這支手機在 FCM 的推播目標，後端以它當 token 送出。
+  String? _installationId;
+  final StreamController<String> _registrations = StreamController<String>.broadcast();
+
   Future<PushService> init() async {
     NotificationService.onTap = (payload) {
       final data = _decode(payload);
@@ -53,8 +57,12 @@ class PushService extends GetxService {
         ),
       );
       _ready = true;
+      FirebaseMessaging.instance.onRegistered.listen((id) {
+        _installationId = id;
+        _registrations.add(id);
+      });
       FirebaseMessaging.onMessage.listen(_showInForeground);
-      FirebaseMessaging.onMessageOpenedApp.listen((message) => open(message.data));
+      FirebaseMessaging.onMessageOpenedApp.listen(_openMessage);
     } catch (error) {
       // Firebase 設定不正確時不能讓整個 App 打不開。
       debugPrint('Push disabled: $error');
@@ -77,12 +85,25 @@ class PushService extends GetxService {
       if (status == AuthorizationStatus.denied || status == AuthorizationStatus.notDetermined) {
         return null;
       }
-      // 後端用 FCM v1 的 token 欄位送出，這裡要給的就是註冊 token；
-      // 新的 register()／onRegistered 回傳的是 Installation ID，能不能直接當 token 用要用真實專案確認後再換。
-      // ignore: deprecated_member_use
-      return await messaging.getToken();
+      return await _registeredId();
     } catch (error) {
       debugPrint('Push token unavailable: $error');
+      return null;
+    }
+  }
+
+  /// 向 FCM 註冊並取得 Installation ID；已經註冊過就直接用記下來的（更換時 onRegistered 會再通知）。
+  Future<String?> _registeredId() async {
+    if (_installationId != null) {
+      return _installationId;
+    }
+    await FirebaseMessaging.instance.register();
+    if (_installationId != null) {
+      return _installationId;
+    }
+    try {
+      return await _registrations.stream.first.timeout(const Duration(seconds: 10));
+    } on TimeoutException {
       return null;
     }
   }
@@ -107,7 +128,20 @@ class PushService extends GetxService {
     }
     final message = await FirebaseMessaging.instance.getInitialMessage();
     if (message != null) {
-      await open(message.data);
+      await _openMessage(message);
+    }
+  }
+
+  /// 同一則通知只開一次：冷啟動時 onMessageOpenedApp 與 getInitialMessage 可能各通知一次。
+  String? _lastOpenedMessageId;
+  Future<void> _openMessage(RemoteMessage message) async {
+    final id = message.messageId;
+    if (id != null && id == _lastOpenedMessageId) {
+      return;
+    }
+    // 真的開成功才記下來；太早（導覽器還沒好）被略過的話，後面的 getInitialMessage 還要再開一次。
+    if (await open(message.data)) {
+      _lastOpenedMessageId = id;
     }
   }
 
@@ -126,10 +160,11 @@ class PushService extends GetxService {
   }
 
   /// 依通知帶的資料開啟輔具預約：有預約編號就開那一筆，到貨通知開預約查詢，其餘開首頁。
-  static Future<void> open(Map<String, dynamic> data) async {
+  static Future<bool> open(Map<String, dynamic> data) async {
     final base = MyServiceItemId.assistiveBooking.item.destinationUrl;
-    if (base.isEmpty) {
-      return;
+    // App 還沒畫出第一個畫面（冷啟動）時 GetX 沒有導覽器可用；那種情況由 openInitialMessage 負責。
+    if (base.isEmpty || Get.key.currentState == null) {
+      return false;
     }
     final reservationId = data['reservation_id'];
     final path = reservationId is String && reservationId.isNotEmpty
@@ -138,11 +173,13 @@ class PushService extends GetxService {
             ? '/reservations'
             : '';
     // GetX 預設不會重複開同一個路由；使用者正好在輔具預約裡時，仍要疊開通知指向的那一頁。
-    await Get.toNamed(
+    // toNamed 要等頁面關掉才會結束，這裡不等，才能立刻回報「已經開了」。
+    unawaited(Get.toNamed(
       TPRoute.webView,
       arguments: WebViewArgument(url: '$base$path'),
       preventDuplicates: false,
-    );
+    ));
+    return true;
   }
 
   static Map<String, dynamic>? _decode(String? payload) {

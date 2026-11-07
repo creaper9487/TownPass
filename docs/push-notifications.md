@@ -29,6 +29,8 @@ flutter run \
 
 後端要用同一個 Firebase 專案的服務帳號金鑰（`FCM_PROJECT_ID`、`FCM_CREDENTIALS_FILE`），App 與後端才會在同一個專案。
 
+Android 要在 `AndroidManifest.xml` 打開 `firebase_messaging_installation_id_enabled`（已設定），否則 FID API 會回報「API disabled」。
+
 ### iOS 還要做的事
 
 - 在 Firebase 專案上傳 APNs 金鑰（Apple Developer 帳號產生）。
@@ -44,7 +46,7 @@ debug 版可以用 `--dart-define=PUSH_DEV_TOKEN=local-xxxx` 代替真的 token�
 
 網頁送出 `{name: 'push_token', data: {silent?: boolean, topics?: string[]}}`，App 回覆 `{name: 'push_token', data}`：
 
-- 成功：`data = {token, platform: 'fcm'}`
+- 成功：`data = {token, platform: 'fcm'}`。`token` 是 Firebase Installation ID（FID，`FirebaseMessaging.register()` + `onRegistered`），後端直接放進 FCM v1 的 `message.token` 送出（已用真實專案驗證）
 - 使用者不同意、系統拒絕通知、沒有設定 Firebase：`data = []`
 
 行為：
@@ -53,7 +55,7 @@ debug 版可以用 `--dart-define=PUSH_DEV_TOKEN=local-xxxx` 代替真的 token�
 2. 同意後，App 才會向系統要通知權限、取得 token。
 3. `topics` 只接受 `assistive-` 開頭的名稱，同意後替使用者訂閱（後端公告用 `assistive-notice`）。
 
-網頁拿到 token 後，用自己的信箱金鑰呼叫後端 `POST /devices` 登記。
+網頁拿到 token 後，用自己的信箱金鑰呼叫後端 `POST /devices` 登記；同一支手機換了 token，網頁會先請後端移除舊的再登記新的。
 
 ## 後端推播的格式（App 端的約定）
 
