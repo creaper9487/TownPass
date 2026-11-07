@@ -224,8 +224,12 @@ class PushService extends GetxService {
       content: notification.body,
       channelId: NotificationService.assistiveChannelId,
       payload: jsonEncode(message.data),
+      tag: message.data['type'] == 'stock.arrived' ? arrivalTag('${message.data['variant_id']}') : null,
     );
   }
+
+  /// 到貨通知在通知列上的識別；登記取消或已經預約到這個品項時，用它把通知收掉。
+  static String arrivalTag(String variantId) => 'assistive.arrival.$variantId';
 
   /// 依通知帶的資料開啟輔具預約：有預約編號就開那一筆，到貨通知開預約查詢，其餘開首頁。
   static Future<bool> open(Map<String, dynamic> data) async {

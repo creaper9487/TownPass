@@ -349,6 +349,8 @@ class AssistiveSubscribeMessageHandler extends TPWebMessageHandler with Assistiv
         await backend.subscribe('$variant');
       } else {
         await backend.unsubscribe('$variant');
+        // 登記取消了（使用者取消，或已經預約到這個品項），通知列上它的到貨通知也一併收掉
+        unawaited(NotificationService.cancelTagged(PushService.arrivalTag('$variant')));
       }
       onReply?.call(replyWebMessage(data: true));
     } on AssistiveApiException catch (error) {

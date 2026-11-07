@@ -63,6 +63,7 @@ class NotificationService extends GetxService {
     String? content,
     String? channelId,
     String? payload,
+    String? tag,
   }) async {
     final bool isAssistive = channelId == assistiveChannelId;
     await _notificationInstance.show(
@@ -76,8 +77,25 @@ class NotificationService extends GetxService {
           isAssistive ? '輔具預約通知' : 'TownPass android notification channel name',
           importance: Importance.max,
           priority: Priority.max,
+          tag: tag,
         ),
       ),
     );
+  }
+
+  /// 收回已經用不到的通知（例如已經預約了的品項的到貨通知）：顯示時帶的 [tag] 相同的都收掉。
+  /// Android 讀不到通知當初帶的 payload，所以用 tag 辨認。只收得回 App 自己顯示的通知；
+  /// App 在背景時由系統直接顯示的推播沒有這個 tag，留給使用者自行清除。
+  static Future<void> cancelTagged(String tag) async {
+    try {
+      for (final notification in await _notificationInstance.getActiveNotifications()) {
+        final int? id = notification.id;
+        if (id != null && notification.tag == tag) {
+          await _notificationInstance.cancel(id: id, tag: tag);
+        }
+      }
+    } catch (_) {
+      // 收不掉就留著，不影響其他功能
+    }
   }
 }
