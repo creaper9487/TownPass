@@ -206,12 +206,14 @@ abstract class TPRoute {
       null => Future.value(null),
       Uri uri => switch (uri.scheme) {
           'local' => Get.toNamed(uri.host),
+          // 從網頁服務裡開連結時，目前頁面本身就是 webView；GetX 預設不重複開同一個路由，連結會被忽略。
           _ => Get.toNamed(
               TPRoute.webView,
               arguments: WebViewArgument(
                 url: uri.toString(),
                 forceTitle: forceTitle,
               ),
+              preventDuplicates: false,
             ),
         },
     };

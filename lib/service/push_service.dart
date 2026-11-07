@@ -213,10 +213,18 @@ class PushService extends GetxService {
     }
   }
 
+  /// 只把使用者不在畫面上也需要知道的非同步消息顯示成通知：到貨、取貨期限當天提醒、中心確認。
+  /// 預約成功、取消這類使用者自己剛做完的事，網頁已經用彈窗告知；後端就算推了（舊版後端會推），這裡也不再跳通知。
+  static const Set<String> shownTypes = {
+    'stock.arrived',
+    'reservation.pickup_reminder',
+    'reservation.confirmed',
+  };
+
   /// 前景時系統不會顯示 FCM 通知，改用本機通知顯示，點了一樣會開對應頁面。
   Future<void> _showInForeground(RemoteMessage message) async {
     final notification = message.notification;
-    if (notification == null) {
+    if (notification == null || !shownTypes.contains(message.data['type'])) {
       return;
     }
     await NotificationService.showNotification(
