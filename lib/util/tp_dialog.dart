@@ -112,6 +112,78 @@ class TPDialog {
     );
   }
 
+  /// 兩個選項的確認視窗（例如個資授權）。回傳 true／false；
+  /// 使用者按返回鍵關閉時回傳 null，呼叫端可視為「這次沒有決定」。
+  static Future<bool?> showConfirm({
+    required String title,
+    required Widget content,
+    String positiveText = '同意',
+    String negativeText = '不同意',
+  }) {
+    return Get.dialog<bool>(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 16.0),
+              child: TPText(
+                title,
+                style: TPTextStyles.h2SemiBold,
+                color: TPColors.grayscale950,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: content,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const TPLine.horizontal(),
+            SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Get.back(result: false),
+                      child: Center(
+                        child: TPText(
+                          negativeText,
+                          style: TPTextStyles.h3SemiBold,
+                          color: TPColors.grayscale500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const TPLine.vertical(),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Get.back(result: true),
+                      child: Center(
+                        child: TPText(
+                          positiveText,
+                          style: TPTextStyles.h3SemiBold,
+                          color: TPColors.primary500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      barrierDismissible: false,
+    );
+  }
+
   Future showType2({required Widget asset, String? title, Widget? content}) async {
     TPDialog.show(
       content: Column(

@@ -70,7 +70,7 @@ class AccountView extends GetView<AccountViewController> {
                     TPSettingListTile.line(),
                     TPSettingListTile.navigate(
                       title: '歷程與授權管理',
-                      onTap: () {},
+                      onTap: () => Get.toNamed(TPRoute.portfolioAndAuth),
                     ),
                     TPSettingListTile.line(),
                     TPSettingListTile.navigate(

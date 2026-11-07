@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/gen/assets.gen.dart';
 import 'package:town_pass/service/account_service.dart';
+import 'package:town_pass/service/data_authorization_service.dart';
 import 'package:town_pass/service/device_service.dart';
 import 'package:town_pass/service/geo_locator_service.dart';
 import 'package:town_pass/service/notification_service.dart';
@@ -47,8 +48,14 @@ class UserinfoWebMessageHandler extends TPWebMessageHandler {
     required bool isMainFrame,
     required onReply,
   }) async {
+    // 沒有取得使用者授權就不給任何個資（回傳空值），由網頁自行請使用者填寫。
+    final bool allowed = await Get.find<DataAuthorizationService>().ensure(
+      origin: sourceOrigin,
+      scope: DataScope.userinfo,
+    );
+
     onReply?.call(replyWebMessage(
-      data: Get.find<AccountService>().account ?? [],
+      data: allowed ? (Get.find<AccountService>().account ?? []) : [],
     ));
   }
 }
@@ -180,6 +187,15 @@ class LocationMessageHandler extends TPWebMessageHandler {
     required Function(WebMessage reply)? onReply,
   }) async {
     Position? position;
+
+    final bool allowed = await Get.find<DataAuthorizationService>().ensure(
+      origin: sourceOrigin,
+      scope: DataScope.location,
+    );
+    if (!allowed) {
+      onReply?.call(replyWebMessage(data: []));
+      return;
+    }
 
     // might have permission issue
     try {

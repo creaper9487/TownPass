@@ -45,7 +45,10 @@ class SettingView extends GetView<SettingViewController> {
                 onTap: () => Get.toNamed(TPRoute.invoiceReceipt),
               ),
               TPSettingListTile.header(title: '安全性'),
-              TPSettingListTile.navigate(title: '歷程與授權管理'),
+              TPSettingListTile.navigate(
+                title: '歷程與授權管理',
+                onTap: () => Get.toNamed(TPRoute.portfolioAndAuth),
+              ),
               TPSettingListTile.line(),
               TPSettingListTile.switchButton(title: '快速登入'),
               TPSettingListTile.line(),

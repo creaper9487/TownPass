@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:town_pass/page/portfolioAndAuth/portfolio_auth_view_controller.dart';
+import 'package:town_pass/page/portfolioAndAuth/widget/data_authorization_list.dart';
 import 'package:town_pass/util/tp_app_bar.dart';
 import 'package:town_pass/util/tp_colors.dart';
 import 'package:town_pass/util/tp_text.dart';
@@ -14,7 +15,10 @@ extension on ToggleTab {
   }
 
   Widget get contentWidget {
-    return Center(child: TPText(label));
+    return switch (this) {
+      ToggleTab.portfolio => Center(child: TPText(label)),
+      ToggleTab.auth => const DataAuthorizationList(),
+    };
   }
 }
 

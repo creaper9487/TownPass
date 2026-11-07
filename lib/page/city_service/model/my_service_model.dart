@@ -29,6 +29,7 @@ enum MyServiceItemId {
   library,
   locationSearch,
   zoo,
+  assistiveBooking,
   ;
 }
 
@@ -182,6 +183,14 @@ extension MyServiceIdExt on MyServiceItemId {
           icon: Assets.svg.iconZoo24.svg(),
           category: MyServiceCategory.explore,
           destinationUrl: '',
+        ),
+      MyServiceItemId.assistiveBooking => MyServiceItem(
+          title: '輔具預約',
+          description: '二手輔具借用、評估、維修與回收預約',
+          icon: Assets.svg.iconFamilyCenter.svg(),
+          category: MyServiceCategory.cityService,
+          // 本機開發：Android 模擬器用 10.0.2.2 連到開發機的 Vite 伺服器
+          destinationUrl: 'http://10.0.2.2:5173/assistive',
         ),
     };
   }
