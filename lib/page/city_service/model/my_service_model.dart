@@ -7,6 +7,13 @@ import 'package:town_pass/gen/assets.gen.dart';
 // First, add new service within the MyServiceItemId enum;
 // Then add MyServiceItem within MyServiceIdExt extension.
 
+/// 輔具預約網頁的網址。預設是 Android 模擬器（10.0.2.2 = 開發機）上的 Vite 開發伺服器；
+/// 真機或指向其他位置時，建置用 --dart-define=ASSISTIVE_URL=http://<開發機 IP>:5173/assistive 覆蓋。
+const String _assistiveUrl = String.fromEnvironment(
+  'ASSISTIVE_URL',
+  defaultValue: 'http://10.0.2.2:5173/assistive',
+);
+
 enum MyServiceItemId {
   dedicatedLine,
   districtOffice,
@@ -189,8 +196,7 @@ extension MyServiceIdExt on MyServiceItemId {
           description: '二手輔具借用、福利查詢、評估與維修預約',
           icon: Assets.svg.iconFamilyCenter.svg(),
           category: MyServiceCategory.cityService,
-          // 本機開發：Android 模擬器用 10.0.2.2 連到開發機的 Vite 伺服器
-          destinationUrl: 'http://10.0.2.2:5173/assistive',
+          destinationUrl: _assistiveUrl,
         ),
     };
   }
