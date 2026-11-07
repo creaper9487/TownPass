@@ -48,7 +48,7 @@ class TPWebView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final Widget page = Scaffold(
       appBar: TPAppBar(
         backgroundColor: TPColors.primary500,
         foregroundColor: TPColors.white,
@@ -99,6 +99,20 @@ class TPWebView extends StatelessWidget {
           return GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true);
         },
         onCloseWindow: (_) => Get.back(),
+      ),
+    );
+
+    // Android 返回鍵（與手勢返回）：網頁還有上一頁就回網頁的上一頁，沒有才關閉。
+    // page 在 Obx 外面建立，canGoBack 改變時只會更新 PopScope，不會重建整個網頁。
+    return Obx(
+      () => PopScope(
+        canPop: !canGoBack.value,
+        onPopInvokedWithResult: (bool didPop, Object? result) async {
+          if (!didPop) {
+            await webViewController.value?.goBack();
+          }
+        },
+        child: page,
       ),
     );
   }

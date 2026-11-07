@@ -186,7 +186,7 @@ extension MyServiceIdExt on MyServiceItemId {
         ),
       MyServiceItemId.assistiveBooking => MyServiceItem(
           title: '輔具預約',
-          description: '二手輔具借用、評估、維修與回收預約',
+          description: '二手輔具借用、福利查詢、評估與維修預約',
           icon: Assets.svg.iconFamilyCenter.svg(),
           category: MyServiceCategory.cityService,
           // 本機開發：Android 模擬器用 10.0.2.2 連到開發機的 Vite 伺服器
